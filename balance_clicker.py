@@ -13,6 +13,10 @@ class BalanceClicker:
         pyxel.run(self.update, self.draw)
 
 
+    # Update method to handle game logic
+    # and user input
+    # and to update the game state
+    # It uses Pyxel's built-in functions
     def update(self):
         if pyxel.btnp(pyxel.KEY_Q):
             pyxel.quit()
@@ -28,6 +32,11 @@ class BalanceClicker:
         if pyxel.frame_count % 30 == 0:  # Auto click every second
             self.balance += self.auto_clickers * self.auto_clicker_rate
 
+
+    # Draw method to render the game
+    # UI and game elements
+    # It uses Pyxel's built-in drawing functions
+    # to create a simple interface
     def draw(self):
         pyxel.cls(0)
         pyxel.text(10, 10, f"Balance: {self.balance}", 7)
@@ -41,3 +50,10 @@ class BalanceClicker:
 
 
 BalanceClicker()
+# This code creates a simple balance clicker game using the Pyxel library.
+# The player can click to gain balance and buy auto clickers to increase their balance over time.
+# The game features a simple UI displaying the current balance, click value, number of auto clickers, and the cost of the next auto clicker.
+# The player can click with the space bar and buy auto clickers with the 'A' key.
+# The game is designed to be simple and easy to understand, making it suitable for beginners.
+# The game also includes a quit option with the 'Q' key.
+# The game runs at a fixed frame rate, updating the balance and drawing the UI at regular intervals.
