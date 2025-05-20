@@ -81,9 +81,36 @@ class Enemy:
             health_width = int((self.health/self.max_health) * self.size)
             pyxel.rect(self.x, self.y - 5, health_width, 2, 11)
 
+class Button:
+    def __init__(self, x, y, width, height, text, color):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.color = color
+        self.hover_color = color + 1 if color < 15 else color - 1
+    
+    def draw(self, mouse_x, mouse_y):
+        current_color = self.hover_color if self.is_hovered(mouse_x, mouse_y) else self.color
+        pyxel.rect(self.x, self.y, self.width, self.height, current_color)
+        text_width = len(self.text) * 4
+        pyxel.text(
+            self.x + (self.width - text_width) // 2,
+            self.y + (self.height - 5) // 2,
+            self.text,
+            0 if current_color > 6 else 7
+        )
+    
+    def is_hovered(self, mouse_x, mouse_y):
+        return (
+            self.x <= mouse_x <= self.x + self.width and
+            self.y <= mouse_y <= self.y + self.height
+        )
+
 class IdleClicker:
     def __init__(self):
-        pyxel.init(200, 220, title="Balance Clicker: Level System")
+        pyxel.init(200, 240, title="Balance Clicker: Mouse Control")
         pyxel.mouse(True)
         
         # Game state
@@ -94,13 +121,14 @@ class IdleClicker:
         self.level_progress = 0
         self.level_up_requirement = 30
         self.game_over = False
+        self.show_upgrades = False
         
         # Upgrade system
         self.upgrades = {
-            "auto_clicker": {"level": 0, "cost": 10, "value": 1},
-            "efficiency": {"level": 0, "cost": 15, "value": 0.2},
-            "click_power": {"level": 0, "cost": 20, "value": 5},
-            "slow_shot": {"level": 0, "cost": 25, "value": 3}
+            "Auto-Clicker": {"level": 0, "cost": 10, "value": 1},
+            "Efficiency": {"level": 0, "cost": 15, "value": 0.2},
+            "Click Power": {"level": 0, "cost": 20, "value": 5},
+            "Slow Shot": {"level": 0, "cost": 25, "value": 3}
         }
         
         # Enemy system
@@ -108,6 +136,16 @@ class IdleClicker:
         self.enemy_spawn_timer = 0
         self.enemy_spawn_delay = 45
         self.boss_spawned = False
+        
+        # Buttons
+        self.upgrade_button = Button(10, 180, 180, 15, "UPGRADES", 5)
+        self.upgrade_buttons = [
+            Button(10, 60 + i*25, 180, 20, 
+                  f"{name} (Lv:{data['level']}) - {data['cost']}pts", 
+                  9 if self.score >= data["cost"] else 8)
+            for i, (name, data) in enumerate(self.upgrades.items())
+        ]
+        self.close_button = Button(160, 60, 30, 15, "X", 8)
         
         pyxel.run(self.update, self.draw)
     
@@ -125,8 +163,10 @@ class IdleClicker:
     
     def update(self):
         if self.game_over:
-            if pyxel.btnp(pyxel.KEY_R):
-                self.reset_game()
+            if pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT):
+                mx, my = pyxel.mouse_x, pyxel.mouse_y
+                if 70 <= mx <= 130 and 110 <= my <= 130:  # Tombol restart
+                    self.reset_game()
             return
         
         # Level progression
@@ -149,69 +189,78 @@ class IdleClicker:
                 if enemy.type == 3:  # Jika boss lolos
                     self.energy -= 20
         
-        # Mouse click
+        # Mouse click handling
         if pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT):
             mx, my = pyxel.mouse_x, pyxel.mouse_y
-            hit = False
             
-            for enemy in self.enemies[:]:
-                if (enemy.x <= mx <= enemy.x + enemy.size and 
-                    enemy.y <= my <= enemy.y + enemy.size):
-                    enemy.health -= self.upgrades["click_power"]["value"]
-                    if self.upgrades["slow_shot"]["level"] > 0:
-                        enemy.slow_timer = 20
-                    
-                    if enemy.health <= 0:
-                        self.enemies.remove(enemy)
-                        self.score += enemy.score_value
-                        self.energy += 2
-                        if enemy.type == 3:  # Kalahkan boss
-                            self.score += 50
-                            self.energy += 10
-                            self.boss_spawned = False
-                    hit = True
+            # Cek klik upgrade button
+            if self.upgrade_button.is_hovered(mx, my):
+                self.show_upgrades = not self.show_upgrades
             
-            if not hit:
-                self.energy += self.upgrades["click_power"]["value"]
-                self.score += 1
+            # Cek klik close button
+            elif self.show_upgrades and self.close_button.is_hovered(mx, my):
+                self.show_upgrades = False
+            
+            # Cek klik tombol upgrade
+            elif self.show_upgrades:
+                for i, button in enumerate(self.upgrade_buttons):
+                    upgrade_name = list(self.upgrades.keys())[i]
+                    if button.is_hovered(mx, my) and self.score >= self.upgrades[upgrade_name]["cost"]:
+                        self.buy_upgrade(upgrade_name)
+                        # Update button text
+                        button.text = f"{upgrade_name} (Lv:{self.upgrades[upgrade_name]['level']}) - {self.upgrades[upgrade_name]['cost']}pts"
+            
+            # Cek klik musuh atau background
+            else:
+                hit_enemy = False
+                for enemy in self.enemies[:]:
+                    if (enemy.x <= mx <= enemy.x + enemy.size and 
+                        enemy.y <= my <= enemy.y + enemy.size):
+                        enemy.health -= self.upgrades["Click Power"]["value"]
+                        if self.upgrades["Slow Shot"]["level"] > 0:
+                            enemy.slow_timer = 20
+                        
+                        if enemy.health <= 0:
+                            self.enemies.remove(enemy)
+                            self.score += enemy.score_value
+                            self.energy += 2
+                            if enemy.type == 3:  # Kalahkan boss
+                                self.score += 50
+                                self.energy += 10
+                                self.boss_spawned = False
+                        hit_enemy = True
+                
+                if not hit_enemy:
+                    self.energy += self.upgrades["Click Power"]["value"]
+                    self.score += 1
         
         # Auto-clicker
-        if self.upgrades["auto_clicker"]["level"] > 0 and pyxel.frame_count % 30 == 0:
-            self.energy += self.upgrades["auto_clicker"]["level"]
+        if self.upgrades["Auto-Clicker"]["level"] > 0 and pyxel.frame_count % 30 == 0:
+            self.energy += self.upgrades["Auto-Clicker"]["level"]
         
         # Energy drain
-        self.energy -= self.upgrades["efficiency"]["value"]
+        self.energy -= self.upgrades["Efficiency"]["value"]
         
         # Game over check
         if self.energy <= 0:
             self.game_over = True
-        
-        # Upgrade keys
-        keys = [pyxel.KEY_1, pyxel.KEY_2, pyxel.KEY_3, pyxel.KEY_4]
-        for i, upgrade in enumerate(self.upgrades.keys()):
-            if pyxel.btnp(keys[i]) and self.score >= self.upgrades[upgrade]["cost"]:
-                self.buy_upgrade(upgrade)
     
     def level_up(self):
         self.level += 1
         self.level_up_requirement += self.level * 15
         self.max_energy += 20
         self.energy = min(self.energy + 30, self.max_energy)
-        
-        # Reset progress
         self.level_progress = 0
-        
-        # Bersihkan musuh saat naik level
         self.enemies.clear()
         self.boss_spawned = False
     
-    def buy_upgrade(self, upgrade):
-        self.score -= self.upgrades[upgrade]["cost"]
-        self.upgrades[upgrade]["level"] += 1
-        self.upgrades[upgrade]["cost"] += int(self.upgrades[upgrade]["cost"] * 0.5)
+    def buy_upgrade(self, upgrade_name):
+        self.score -= self.upgrades[upgrade_name]["cost"]
+        self.upgrades[upgrade_name]["level"] += 1
+        self.upgrades[upgrade_name]["cost"] += int(self.upgrades[upgrade_name]["cost"] * 0.5)
         
-        if upgrade == "efficiency":
-            self.upgrades[upgrade]["value"] *= 0.9
+        if upgrade_name == "Efficiency":
+            self.upgrades[upgrade_name]["value"] *= 0.9
     
     def reset_game(self):
         self.energy = 50
@@ -221,6 +270,7 @@ class IdleClicker:
         self.level_progress = 0
         self.level_up_requirement = 30
         self.game_over = False
+        self.show_upgrades = False
         self.enemies = []
         self.boss_spawned = False
         
@@ -228,6 +278,10 @@ class IdleClicker:
             upgrade["level"] = 0
             if "original_cost" in upgrade:
                 upgrade["cost"] = upgrade["original_cost"]
+        
+        # Reset upgrade buttons text
+        for i, (name, data) in enumerate(self.upgrades.items()):
+            self.upgrade_buttons[i].text = f"{name} (Lv:{data['level']}) - {data['cost']}pts"
     
     def draw(self):
         pyxel.cls(0)
@@ -248,23 +302,34 @@ class IdleClicker:
         pyxel.rect(5, 45, int(190 * energy_ratio), 5, 11)
         pyxel.rectb(5, 45, 190, 5, 13)
         
-        # Upgrade panel
-        pyxel.text(5, 55, "UPGRADES (1-4):", 7)
-        for i, (name, data) in enumerate(self.upgrades.items()):
-            color = 9 if self.score >= data["cost"] else 8
-            pyxel.text(10, 65 + i*10, 
-                      f"{i+1}. {name.replace('_',' ').title()} (Lv:{data['level']}) - {data['cost']}pts",
-                      color)
+        # Draw upgrade button
+        self.upgrade_button.draw(pyxel.mouse_x, pyxel.mouse_y)
+        
+        # Draw upgrade panel if shown
+        if self.show_upgrades:
+            pyxel.rect(5, 55, 190, 120, 1)
+            pyxel.rectb(5, 55, 190, 120, 3)
+            pyxel.text(75, 60, "UPGRADE SHOP", 7)
+            self.close_button.draw(pyxel.mouse_x, pyxel.mouse_y)
+            
+            for button in self.upgrade_buttons:
+                button.draw(pyxel.mouse_x, pyxel.mouse_y)
         
         # Enemies
         for enemy in self.enemies:
             enemy.draw()
         
-        # Game over
+        # Game over screen
         if self.game_over:
-            pyxel.rect(50, 80, 100, 50, 1)
+            pyxel.rect(50, 80, 100, 60, 1)
+            pyxel.rectb(50, 80, 100, 60, 3)
             pyxel.text(65, 90, "GAME OVER", pyxel.frame_count % 16)
-            pyxel.text(60, 100, f"Reached Level: {self.level}", 7)
-            pyxel.text(55, 110, "Press R to restart", 7)
+            pyxel.text(60, 100, f"Level: {self.level}", 7)
+            pyxel.text(60, 110, f"Score: {self.score}", 7)
+            
+            # Restart button
+            restart_color = 11 if (70 <= pyxel.mouse_x <= 130 and 110 <= pyxel.mouse_y <= 130) else 8
+            pyxel.rect(70, 120, 60, 15, restart_color)
+            pyxel.text(85, 123, "RESTART", 0)
 
 IdleClicker()
