@@ -7,10 +7,10 @@ class UIManager:
         self.upgrade_buttons = []
         self.update_upgrade_buttons(upgrade_manager.upgrades, 0)
 
-    def update_upgrade_buttons(self, upgrades, score):
+    def update_upgrade_buttons(self, upgrades, energy):
         self.upgrade_buttons = [
             Button(10, 60 + i*25, 180, 20,
                    f"{name} (Lv:{data['level']}) - {data['cost']}pts",
-                   9 if score >= data["cost"] else 8)
+                   9 if energy >= data["cost"] else 8)
             for i, (name, data) in enumerate(upgrades.items())
         ]

@@ -30,7 +30,7 @@ class Button:
     
     def play_sound(self):
         if self.sound_channel == 0:
-            pyxel.play(0, 0)
+            pyxel.play(0, 6)
         else:
             pyxel.play(1, 1)
 

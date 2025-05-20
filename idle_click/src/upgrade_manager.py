@@ -7,8 +7,8 @@ class UpgradeManager:
             "Slow Shot": {"level": 0, "cost": 25, "value": 3, "original_cost": 25}
         }
 
-    def can_buy(self, name, score):
-        return score >= self.upgrades[name]["cost"]
+    def can_buy(self, name, energy):
+        return energy >= self.upgrades[name]["cost"]
 
     def buy(self, name):
         upgrade = self.upgrades[name]
