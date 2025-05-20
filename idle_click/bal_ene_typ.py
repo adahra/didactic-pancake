@@ -3,10 +3,14 @@ from upgrade_manager import UpgradeManager
 from enemy_manager import EnemyManager
 from ui_manager import UIManager
 
+
 class IdleClicker:
     def __init__(self):
         pyxel.init(200, 240, title="Balance Clicker: Mouse Control")
         pyxel.mouse(True)
+
+        self.init_sounds()
+
         self.energy = 50
         self.max_energy = 150
         self.score = 0
@@ -20,6 +24,12 @@ class IdleClicker:
         self.ui_manager = UIManager(self.upgrade_manager)
 
         pyxel.run(self.update, self.draw)
+
+    def init_sounds(self):
+        pyxel.sound(0).set("c2e2g2c3", "s", "6", "nnnn", 32)
+        pyxel.sound(1).set("e3b3g2", "s", "6", "nnn", 32)
+        pyxel.sound(2).set("a3g3f3e3", "t", "7", "nnnn", 16)
+        pyxel.sound(3).set("c3c3c3", "n", "6", "fff", 0)
 
     def update(self):
         if self.game_over:
@@ -38,6 +48,7 @@ class IdleClicker:
         if pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT):
             mx, my = pyxel.mouse_x, pyxel.mouse_y
             if 70 <= mx <= 130 and 110 <= my <= 130:
+                pyxel.play(0, 0)
                 self.reset_game()
 
     def handle_level_progression(self):
@@ -59,21 +70,26 @@ class IdleClicker:
         if pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT):
             mx, my = pyxel.mouse_x, pyxel.mouse_y
             if self.ui_manager.upgrade_button.is_hovered(mx, my):
+                self.ui_manager.upgrade_button.play_sound()
                 self.show_upgrades = not self.show_upgrades
             elif self.show_upgrades and self.ui_manager.close_button.is_hovered(mx, my):
+                self.ui_manager.close_button.play_sound()
                 self.show_upgrades = False
             elif self.show_upgrades:
                 for i, button in enumerate(self.ui_manager.upgrade_buttons):
-                    upgrade_name = list(self.upgrade_manager.upgrades.keys())[i]
+                    upgrade_name = list(
+                        self.upgrade_manager.upgrades.keys())[i]
                     if button.is_hovered(mx, my) and self.upgrade_manager.can_buy(upgrade_name, self.score):
+                        button.play_sound()
                         self.score -= self.upgrade_manager.upgrades[upgrade_name]["cost"]
                         self.upgrade_manager.buy(upgrade_name)
-                        self.ui_manager.update_upgrade_buttons(self.upgrade_manager.upgrades, self.score)
+                        self.ui_manager.update_upgrade_buttons(
+                            self.upgrade_manager.upgrades, self.score)
             else:
                 hit_enemy = False
                 for enemy in self.enemy_manager.enemies[:]:
                     if (enemy.x <= mx <= enemy.x + enemy.size and
-                        enemy.y <= my <= enemy.y + enemy.size):
+                            enemy.y <= my <= enemy.y + enemy.size):
                         enemy.health -= self.upgrade_manager.upgrades["Click Power"]["value"]
                         if self.upgrade_manager.upgrades["Slow Shot"]["level"] > 0:
                             enemy.slow_timer = 20
@@ -89,7 +105,8 @@ class IdleClicker:
                 if not hit_enemy:
                     self.energy += self.upgrade_manager.upgrades["Click Power"]["value"]
                     self.score += 1
-            self.ui_manager.update_upgrade_buttons(self.upgrade_manager.upgrades, self.score)
+            self.ui_manager.update_upgrade_buttons(
+                self.upgrade_manager.upgrades, self.score)
 
         for enemy in self.enemy_manager.enemies[:]:
             if not enemy.active:
@@ -119,7 +136,8 @@ class IdleClicker:
         self.show_upgrades = False
         self.enemy_manager.clear()
         self.upgrade_manager.reset()
-        self.ui_manager.update_upgrade_buttons(self.upgrade_manager.upgrades, self.score)
+        self.ui_manager.update_upgrade_buttons(
+            self.upgrade_manager.upgrades, self.score)
 
     def draw(self):
         pyxel.cls(0)
@@ -158,8 +176,10 @@ class IdleClicker:
         pyxel.text(65, 90, "GAME OVER", pyxel.frame_count % 16)
         pyxel.text(60, 100, f"Level: {self.level}", 7)
         pyxel.text(60, 110, f"Score: {self.score}", 7)
-        restart_color = 11 if (70 <= pyxel.mouse_x <= 130 and 110 <= pyxel.mouse_y <= 130) else 8
+        restart_color = 11 if (70 <= pyxel.mouse_x <=
+                               130 and 110 <= pyxel.mouse_y <= 130) else 8
         pyxel.rect(70, 120, 60, 15, restart_color)
         pyxel.text(85, 123, "RESTART", 0)
+
 
 IdleClicker()

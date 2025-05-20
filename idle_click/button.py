@@ -1,7 +1,7 @@
 import pyxel
 
 class Button:
-    def __init__(self, x, y, width, height, text, color):
+    def __init__(self, x, y, width, height, text, color, sound_channel=0):
         self.x = x
         self.y = y
         self.width = width
@@ -9,6 +9,7 @@ class Button:
         self.text = text
         self.color = color
         self.hover_color = color + 1 if color < 15 else color - 1
+        self.sound_channel = sound_channel
 
     def draw(self, mouse_x, mouse_y):
         current_color = self.hover_color if self.is_hovered(mouse_x, mouse_y) else self.color
@@ -26,3 +27,10 @@ class Button:
             self.x <= mouse_x <= self.x + self.width and
             self.y <= mouse_y <= self.y + self.height
         )
+    
+    def play_sound(self):
+        if self.sound_channel == 0:
+            pyxel.play(0, 0)
+        else:
+            pyxel.play(1, 1)
+
