@@ -7,9 +7,10 @@ class Enemy:
         self.x = x
         self.y = y
         self.type = enemy_type  # 0: Normal, 1: Fast, 2: Tank, 3: Boss
-        self.size = 10
+        self.size = 8
         self.active = True
         self.level = level
+        self.animation_frame = 0
         
         # Properti berdasarkan jenis musuh dan level
         if enemy_type == 0:  # Normal
@@ -18,18 +19,24 @@ class Enemy:
             self.speed = 1.0 + level * 0.1
             self.score_value = 3
             self.damage = 5
+            self.sprite_u = 0
+            self.sprite_v = 0
         elif enemy_type == 1:  # Fast
             self.color = 10
             self.health = 1 + level // 2
             self.speed = 2.5 + level * 0.15
             self.score_value = 5
             self.damage = 3
+            self.sprite_u = 8
+            self.sprite_v = 0
         elif enemy_type == 2:  # Tank
             self.color = 5
             self.health = 8 + level * 2
             self.speed = 0.6 + level * 0.05
             self.score_value = 8
             self.damage = 10
+            self.sprite_u = 16
+            self.sprite_v = 0
         else:  # Boss (type 3)
             self.color = 7
             self.size = 16
@@ -37,12 +44,16 @@ class Enemy:
             self.speed = 0.4
             self.score_value = 20
             self.damage = 15
+            self.sprite_u = 0
+            self.sprite_v = 16
             
         self.max_health = self.health
         self.original_speed = self.speed
         self.slow_timer = 0
     
     def update(self):
+        self.animation_frame = (pyxel.frame_count // 5) % 2
+        
         if self.slow_timer > 0:
             self.slow_timer -= 1
             self.speed = self.original_speed * 0.5
@@ -61,20 +72,23 @@ class Enemy:
             self.active = False
     
     def draw(self):
-        if self.type == 0:  # Normal
-            pyxel.rect(self.x, self.y, self.size, self.size, self.color)
-        elif self.type == 1:  # Fast
-            pyxel.tri(self.x, self.y, 
-                     self.x + self.size, self.y,
-                     self.x + self.size//2, self.y - self.size, 
-                     self.color)
-        elif self.type == 2:  # Tank
-            pyxel.rect(self.x, self.y, self.size, self.size, self.color)
-            pyxel.line(self.x, self.y, self.x + self.size, self.y + self.size, self.color)
-            pyxel.line(self.x + self.size, self.y, self.x, self.y + self.size, self.color)
-        else:  # Boss
-            pyxel.rectb(self.x, self.y, self.size, self.size, self.color)
-            pyxel.circ(self.x + self.size//2, self.y + self.size//2, self.size//3, self.color)
+        # Gambar sprite musuh
+        if self.type == 3:  # Boss
+            pyxel.blt(
+                self.x, self.y, 0,
+                self.sprite_u + (16 if self.animation_frame else 0),
+                self.sprite_v,
+                16, 16,
+                0
+            )
+        else:
+            pyxel.blt(
+                self.x, self.y, 0,
+                self.sprite_u + (8 if self.animation_frame else 0),
+                self.sprite_v,
+                8, 8,
+                0
+            )
         
         # Health bar
         if self.type != 1 or self.type == 3:  # Semua kecuali Fast, Boss selalu ada
@@ -82,7 +96,7 @@ class Enemy:
             pyxel.rect(self.x, self.y - 5, health_width, 2, 11)
 
 class Button:
-    def __init__(self, x, y, width, height, text, color):
+    def __init__(self, x, y, width, height, text, color, sound_channel=0):
         self.x = x
         self.y = y
         self.width = width
@@ -90,6 +104,7 @@ class Button:
         self.text = text
         self.color = color
         self.hover_color = color + 1 if color < 15 else color - 1
+        self.sound_channel = sound_channel
     
     def draw(self, mouse_x, mouse_y):
         current_color = self.hover_color if self.is_hovered(mouse_x, mouse_y) else self.color
@@ -107,13 +122,47 @@ class Button:
             self.x <= mouse_x <= self.x + self.width and
             self.y <= mouse_y <= self.y + self.height
         )
+    
+    def play_sound(self):
+        if self.sound_channel == 0:
+            pyxel.play(0, 0)  # Sound pendek untuk tombol
+        else:
+            pyxel.play(1, 1)  # Sound berbeda untuk upgrade
+
+class Player:
+    def __init__(self):
+        self.x = pyxel.width // 2
+        self.y = pyxel.height - 20
+        self.click_effect = 0
+    
+    def draw(self):
+        # Gambar cursor custom
+        mx, my = pyxel.mouse_x, pyxel.mouse_y
+        pyxel.blt(
+            mx - 4, my - 4, 0,
+            24, 0,
+            8, 8,
+            0
+        )
+        
+        # Efek klik
+        if self.click_effect > 0:
+            pyxel.circ(mx, my, self.click_effect, 10)
+            self.click_effect -= 0.5
+    
+    def show_click(self):
+        self.click_effect = 5
 
 class IdleClicker:
     def __init__(self):
-        pyxel.init(200, 240, title="Balance Clicker: Mouse Control")
-        pyxel.mouse(True)
+        pyxel.init(200, 240, title="Balance Clicker: Pixel Edition")
+        pyxel.mouse(False)  # Sembunyikan cursor default
+        
+        # Load assets
+        self.load_assets()
         
         # Game state
+        self.player = Player()
         self.energy = 50
         self.max_energy = 150
         self.score = 0
@@ -142,18 +191,147 @@ class IdleClicker:
         self.upgrade_buttons = [
             Button(10, 60 + i*25, 180, 20, 
                   f"{name} (Lv:{data['level']}) - {data['cost']}pts", 
-                  9 if self.score >= data["cost"] else 8)
+                  9 if self.score >= data["cost"] else 8, 1)
             for i, (name, data) in enumerate(self.upgrades.items())
         ]
         self.close_button = Button(160, 60, 30, 15, "X", 8)
+        self.restart_button = Button(70, 120, 60, 15, "RESTART", 11)
         
         pyxel.run(self.update, self.draw)
+    
+    def load_assets(self):
+        # Buat image bank dan muat sprite
+        pyxel.image(0).set(
+            # Enemy sprites (8x8)
+            # Normal (2 frame animasi)
+            0, 0, [
+                "00777000",
+                "07000700",
+                "70000070",
+                "77777770",
+                "70000070",
+                "70000070",
+                "07000700",
+                "00777000"
+            ] + [
+                "00777000",
+                "07000700",
+                "70000070",
+                "70000070",
+                "77777770",
+                "70000070",
+                "07000700",
+                "00777000"
+            ],
+            # Fast enemy (2 frame)
+            8, 0, [
+                "00077000",
+                "00700700",
+                "07000070",
+                "70000007",
+                "70000007",
+                "07000070",
+                "00700700",
+                "00077000"
+            ] + [
+                "00077000",
+                "00700700",
+                "07000070",
+                "70000007",
+                "70000007",
+                "07000070",
+                "00700700",
+                "00077000"
+            ],
+            # Tank enemy (2 frame)
+            16, 0, [
+                "07777770",
+                "70000007",
+                "7cccccc7",
+                "7cccccc7",
+                "7cccccc7",
+                "7cccccc7",
+                "70000007",
+                "07777770"
+            ] + [
+                "07777770",
+                "70000007",
+                "7cccccc7",
+                "7cccccc7",
+                "7cccccc7",
+                "7cccccc7",
+                "70000007",
+                "07777770"
+            ],
+            # Cursor (8x8)
+            24, 0, [
+                "00001000",
+                "00010100",
+                "00111100",
+                "01111110",
+                "00111100",
+                "00010100",
+                "00001000",
+                "00000000"
+            ],
+            # Boss sprite (16x16)
+            0, 16, [
+                "0000007777770000",
+                "0000777777777700",
+                "0007777777777770",
+                "0077777777777777",
+                "0777777777777777",
+                "0777777777777777",
+                "7777777777777777",
+                "7777777777777777",
+                "7777777777777777",
+                "7777777777777777",
+                "0777777777777777",
+                "0777777777777777",
+                "0077777777777777",
+                "0007777777777770",
+                "0000777777777700",
+                "0000007777770000"
+            ] + [
+                "0000007777770000",
+                "0000777777777700",
+                "0007777777777770",
+                "0077777777777777",
+                "0777777777777777",
+                "0777777777777777",
+                "7777777777777777",
+                "7777777777777777",
+                "7777777777777777",
+                "7777777777777777",
+                "0777777777777777",
+                "0777777777777777",
+                "0077777777777777",
+                "0007777777777770",
+                "0000777777777700",
+                "0000007777770000"
+            ]
+        )
+        
+        # Sound effects
+        pyxel.sound(0).set(
+            "c2e2g2c3", "s", "6", "nnnn", 32
+        )
+        pyxel.sound(1).set(
+            "e3b2g2", "s", "6", "nnn", 32
+        )
+        pyxel.sound(2).set(
+            "a3g3f3e3", "t", "7", "nnnn", 16
+        )
+        pyxel.sound(3).set(
+            "c3c3c3", "n", "6", "fff", 8
+        )
     
     def spawn_enemy(self):
         # Spawn boss setiap 5 level
         if self.level % 5 == 0 and not self.boss_spawned and len(self.enemies) == 0:
             enemy_type = 3  # Boss
             self.boss_spawned = True
+            pyxel.play(3, 3)  # Sound spawn boss
         else:
             weights = [70 - self.level, 20 + self.level//2, 10 + self.level//3]
             enemy_type = random.choices([0, 1, 2], weights=weights)[0]
@@ -165,13 +343,17 @@ class IdleClicker:
         if self.game_over:
             if pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT):
                 mx, my = pyxel.mouse_x, pyxel.mouse_y
-                if 70 <= mx <= 130 and 110 <= my <= 130:  # Tombol restart
+                if self.restart_button.is_hovered(mx, my):
+                    self.restart_button.play_sound()
+                    pyxel.play(2, 2)  # Sound restart
+                    pyxel.flush()
                     self.reset_game()
             return
         
         # Level progression
         if self.score >= self.level_up_requirement:
             self.level_up()
+            pyxel.play(2, 2)  # Sound level up
         
         # Enemy spawning
         self.enemy_spawn_timer += 1
@@ -188,17 +370,21 @@ class IdleClicker:
                 self.energy -= enemy.damage
                 if enemy.type == 3:  # Jika boss lolos
                     self.energy -= 20
+                pyxel.play(0, 0)  # Sound musuh lolos
         
         # Mouse click handling
         if pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT):
+            self.player.show_click()
             mx, my = pyxel.mouse_x, pyxel.mouse_y
             
             # Cek klik upgrade button
             if self.upgrade_button.is_hovered(mx, my):
+                self.upgrade_button.play_sound()
                 self.show_upgrades = not self.show_upgrades
             
             # Cek klik close button
             elif self.show_upgrades and self.close_button.is_hovered(mx, my):
+                self.close_button.play_sound()
                 self.show_upgrades = False
             
             # Cek klik tombol upgrade
@@ -206,8 +392,8 @@ class IdleClicker:
                 for i, button in enumerate(self.upgrade_buttons):
                     upgrade_name = list(self.upgrades.keys())[i]
                     if button.is_hovered(mx, my) and self.score >= self.upgrades[upgrade_name]["cost"]:
+                        button.play_sound()
                         self.buy_upgrade(upgrade_name)
-                        # Update button text
                         button.text = f"{upgrade_name} (Lv:{self.upgrades[upgrade_name]['level']}) - {self.upgrades[upgrade_name]['cost']}pts"
             
             # Cek klik musuh atau background
@@ -221,6 +407,7 @@ class IdleClicker:
                             enemy.slow_timer = 20
                         
                         if enemy.health <= 0:
+                            pyxel.play(1, 1)  # Sound musuh mati
                             self.enemies.remove(enemy)
                             self.score += enemy.score_value
                             self.energy += 2
@@ -228,9 +415,13 @@ class IdleClicker:
                                 self.score += 50
                                 self.energy += 10
                                 self.boss_spawned = False
+                                pyxel.play(2, 2)  # Sound kalahkan boss
+                        else:
+                            pyxel.play(0, 0)  # Sound hit musuh
                         hit_enemy = True
                 
                 if not hit_enemy:
+                    pyxel.play(0, 0)  # Sound klik biasa
                     self.energy += self.upgrades["Click Power"]["value"]
                     self.score += 1
         
@@ -243,6 +434,7 @@ class IdleClicker:
         
         # Game over check
         if self.energy <= 0:
+            pyxel.play(3, 3)  # Sound game over
             self.game_over = True
     
     def level_up(self):
@@ -286,7 +478,13 @@ class IdleClicker:
     def draw(self):
         pyxel.cls(0)
         
+        # Gambar background
+        for y in range(0, pyxel.height, 8):
+            for x in range(0, pyxel.width, 8):
+                pyxel.rect(x, y, 8, 8, 1 if (x//8 + y//8) % 2 == 0 else 0)
+        
         # UI Top
+        pyxel.rect(0, 0, pyxel.width, 50, 1)
         pyxel.text(5, 5, f"ENERGY: {int(self.energy)}/{self.max_energy}", 7)
         pyxel.text(5, 15, f"SCORE: {self.score}", 7)
         pyxel.text(5, 25, f"LEVEL: {self.level}", 7)
@@ -319,6 +517,9 @@ class IdleClicker:
         for enemy in self.enemies:
             enemy.draw()
         
+        # Player cursor
+        self.player.draw()
+        
         # Game over screen
         if self.game_over:
             pyxel.rect(50, 80, 100, 60, 1)
@@ -327,9 +528,6 @@ class IdleClicker:
             pyxel.text(60, 100, f"Level: {self.level}", 7)
             pyxel.text(60, 110, f"Score: {self.score}", 7)
             
-            # Restart button
-            restart_color = 11 if (70 <= pyxel.mouse_x <= 130 and 110 <= pyxel.mouse_y <= 130) else 8
-            pyxel.rect(70, 120, 60, 15, restart_color)
-            pyxel.text(85, 123, "RESTART", 0)
+            self.restart_button.draw(pyxel.mouse_x, pyxel.mouse_y)
 
 IdleClicker()
